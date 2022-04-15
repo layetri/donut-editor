@@ -22,11 +22,18 @@
 
           <div class="fixed bottom-0 w-full p-4 flex flex-row items-center">
               <div class="flex-auto"></div>
-              <div class="">
-                    <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="addingMidiInput = true">
-                        + midi input
-                    </div>
-              </div>
+                <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="addingMidiInput = true">
+                    + midi input
+                </div>
+                <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="addKeyboardControls">
+                    + keyboard controls
+                </div>
+                <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="addCVControls">
+                    + cv controls
+                </div>
+                <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="clearAll">
+                    x <span class="text-red-500">clear</span>
+                </div>
               <div class="flex-auto"></div>
           </div>
 
@@ -51,13 +58,27 @@ export default {
         return {
             presetName: "Untitled",
             file: null,
-            addingMidiInput: false
+            addingMidiInput: false,
+            allowKeyboardControlsAdd: true,
+            allowCVControlsAdd: true
         }
     },
     methods: {
         createMidiInput({cc, channel}) {
             this.$refs.editor.createMidiInput(cc, channel);
             this.addingMidiInput = false;
+        },
+        addKeyboardControls() {
+            if(this.allowKeyboardControlsAdd) {
+                this.$refs.editor.createKeyboardControls();
+                this.allowKeyboardControlsAdd = false;
+            }
+        },
+        addCVControls() {
+            if(this.allowCVControlsAdd) {
+                this.$refs.editor.createCVControls();
+                this.allowCVControlsAdd = false;
+            }
         },
         importHandler(e) {
             this.$refs.editor.import(JSON.parse(e.target.result));
@@ -83,6 +104,12 @@ export default {
             var reader = new FileReader();
             reader.onload = this.importHandler;
             reader.readAsText(file);
+        },
+        clearAll() {
+            this.$refs.editor.clearAll();
+        },
+        toggleDelete() {
+            this.$refs.editor.toggleDelete();
         }
     }
 }

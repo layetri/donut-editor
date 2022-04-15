@@ -20,7 +20,7 @@
 
                 <span class="p-2 relative rounded-full cursor-pointer"
                     :class="obj.links > 0 ? 'bg-green-500' : 'bg-red-500'"
-                    v-if="['modulator', 'midi'].includes(obj.type)"
+                    v-if="['modulator', 'midi', 'cv'].includes(obj.type)"
                     @mousedown="createConnectionStart('source', obj, 'output', $event)"
                     @mouseup="createConnectionEnd(objects.indexOf(obj), 'output', $event)">
                 </span>
@@ -28,9 +28,12 @@
         </div>
 
         <svg class="h-full w-full">
-            <line v-for="line in links" :key="links.indexOf(line)" :x1="line.source.position.x" :y1="line.source.position.y" :x2="line.destination.position.x" :y2="line.destination.position.y" stroke="black" @dblclick="removeConnection(line)" />
+            <line v-for="line in links" :key="links.indexOf(line)" :x1="line.source.position.x" :y1="line.source.position.y" :x2="line.destination.position.x" :y2="line.destination.position.y" stroke="black" stroke-width="3" @dblclick="removeConnection(links.indexOf(line))" @contextmenu.prevent="openLinkEditor(links.indexOf(line), $event)" />
+            <text v-for="line in links" :key="links.indexOf(line)" class="font-bold text-sm" paint-order="stroke" stroke="#ffffff" stroke-width="3px" :x="((line.destination.position.x + line.source.position.x) / 2) - 10" :y="((line.destination.position.y + line.source.position.y) / 2) + 5">{{ line.amount }}</text>
             <line :x1="connectionMaker.start.x" :y1="connectionMaker.start.y" :x2="connectionMaker.current.x" :y2="connectionMaker.current.y" stroke="grey" />
         </svg>
+
+        <input type="text" ref="linkAmountEditingField" class="absolute bg-white p-2 shadow-md rounded-lg text-xs z-30" :style="{display: linkAmountEditor.active ? '' : 'none'}" autofocus v-model="links[editLinkAmount].amount" v-if="links.length > 0" @keydown.enter="linkAmountEditor.active = false" />
     </div>
 </template>
 
@@ -45,14 +48,21 @@ import WaveShaper from "../synthobjects/WaveShaper";
 import WaveTable from "../synthobjects/WaveTable";
 import Tensions from "../synthobjects/Tensions";
 import MidiIn from "../synthobjects/MidiIn";
+import CvIn from "../synthobjects/CVIn";
+import Voice from "../synthobjects/Voice";
+import StereoDelay from "../synthobjects/StereoDelay";
 
 export default {
     data() {
         return {
             modulators: [],
             sources: [],
+            effects: [],
             midiIns: [],
+            cvIns: [],
             links: [],
+            editLinkAmount: 0,
+            linkAmountEditor: {active: false, x: 0, y:0},
             editing: "",
             connecting: {from: "", name: "", object: null},
             positions: {
@@ -66,7 +76,8 @@ export default {
             connectionMaker: {
                 start: {x: 0, y: 0},
                 current: {x: 0, y: 0}
-            }
+            },
+            voice: null
         }
     },
     created() {
@@ -80,6 +91,10 @@ export default {
         this.sources.push(new WaveTable("WaveTable 1", "wt1"));
         this.sources.push(new WaveTable("WaveTable 2", "wt2"));
         this.sources.push(new Tensions("Tensions", "ks"));
+
+        this.effects.push(new StereoDelay("StereoDelay", "fx_delay"));
+
+        this.voice = new Voice();
     },
     mounted() {
         for(let i = 0; i < this.objects.length; i++) {
@@ -90,6 +105,14 @@ export default {
     methods: {
         editValue(parameter) {
             this.editing = parameter;
+        },
+        openLinkEditor(link, event) {
+            this.editLinkAmount = link;
+
+            let el = this.$refs.linkAmountEditingField;
+            el.style.left = event.clientX + "px";
+            el.style.top = event.clientY + "px";
+            this.linkAmountEditor.active = true;
         },
         dragMouseDown(obj, obj_ref, event) {
             event.preventDefault();
@@ -147,14 +170,16 @@ export default {
             let to = this.objects[obj].get(name);
             let from = this.objects[this.connecting.object].get(this.connecting.name);
 
-            if(this.connecting.from === "source") {
-                this.links.push({source: from, destination: to});
-            } else {
-                this.links.push({source: to, destination: from});
-            }
+            if(to.name !== from.name) {
+                if(this.connecting.from === "source") {
+                    this.links.push({source: from, destination: to, amount: 1.0});
+                } else {
+                    this.links.push({source: to, destination: from, amount: 1.0});
+                }
 
-            to.links++;
-            from.links++;
+                to.links++;
+                from.links++;
+            }
 
             this.clearMouseEvents();
         },
@@ -167,12 +192,23 @@ export default {
         createMidiInput(num, channel) {
             this.midiIns.push(new MidiIn(num, channel));
         },
+        setPosition(name, position) {
+            this.$refs[name][0].style.top = position.y;
+            this.$refs[name][0].style.left = position.x;
+        },
+        setPxPosition(name, position) {
+            this.$refs[name][0].style.top = position.y + "px";
+            this.$refs[name][0].style.left = position.x + "px";
+        },
         export() {
             let dump = {};
             dump["parameters"] = [];
             dump["mod_links"] = [];
+            dump["midi_cc"] = [];
+            dump["editorconfig"] = [];
 
-            let store_to_parameters = this.modulators.concat(this.sources);
+            // Store voice-specific parameters
+            let store_to_parameters = this.modulators.concat(this.sources).concat([this.voice]);
             for(let voice = 0; voice < 12; voice++) {
                 for(let i = 0; i < store_to_parameters.length; i++) {
                     for(let j = 0; j < store_to_parameters[i].parameters.length; j++) {
@@ -185,35 +221,101 @@ export default {
                     }
                 }
 
+                // Store modulator links
                 for(let i = 0; i < this.links.length; i++) {
                     dump["mod_links"].push({
                         source: this.links[i].source.name,
                         destination: this.links[i].destination.name,
-                        amount: 1.0,
+                        amount: this.links[i].amount,
                         voice: voice
                     });
+                }                
+            }
+
+            // Store global parameters (like fx etc)
+            for(let i = 0; i < this.effects.length; i++) {
+                for(let j = 0; j < this.effects[i].parameters.length; j++) {
+                    dump["parameters"].push({
+                        key: this.effects[i].parameters[j].name,
+                        base_value: this.effects[i].parameters[j].value,
+                        value: this.effects[i].parameters[j].value,
+                        voice: 0
+                    });
                 }
+            }
+            
+            for(let i = 0; i < this.midiIns.length; i++) {
+                dump["midi_cc"].push({
+                    cc: this.midiIns[i].cc,
+                    channel: this.midiIns[i].channel,
+                    name: this.midiIns[i].name
+                });
+            }
+
+            for(let i = 0; i < this.objects.length; i++) {
+                let o = {
+                    name: this.objects[i].name,
+                    parameters: [],
+                    object_position: {
+                        x: this.$refs[this.objects[i].name][0].style.left,
+                        y: this.$refs[this.objects[i].name][0].style.top
+                    },
+                    position: this.objects[i].position
+                };
+
+                for(let j = 0; j < this.objects[i].parameters.length; j++) {
+                    o.parameters.push({
+                        name: this.objects[i].parameters[j].name,
+                        position: this.objects[i].parameters[j].position,
+                    });
+                }
+
+                dump["editorconfig"].push(o);
             }
 
             return dump;
         },
         import(data) {
-            console.log(data);
-            for(let i = 0; i < data.parameters.length; i++) {
-                if(this.findParameterObject(data.parameters[i].key)) {
-                    this.findParameterObject(data.parameters[i].key).value = data.parameters[i].value;
+            if(data.midi_cc) {
+                for(let i = 0; i < data.midi_cc.length; i++) {
+                    this.createMidiInput(data.midi_cc[i].cc, data.midi_cc[i].channel);
                 }
             }
 
-            for(let i = 0; i < data.mod_links.length; i++) {
-                let dest = this.findParameterObject(data.mod_links[i].destination);
-                let src = this.findModSource(data.mod_links[i].source);
+            for(let i = 0; i < data.parameters.length; i++) {
+                if(this.findParameterObject(data.parameters[i].key)) {
+                    this.findParameterObject(data.parameters[i].key).value = data.parameters[i].base_value;
+                }
+            }
+            
+            if(data.editorconfig) {
+                for(let i = 0; i < data.editorconfig.length; i++) {
+                    let o = this.objects.find(s => {
+                        return s.name === data.editorconfig[i].name;
+                    });
 
-                if(dest && dest.links == 0) {
-                    this.links.push({source: src, destination: dest});
-                    dest.links++;
-                    src.links++;
+                    this.setPosition(data.editorconfig[i].name, data.editorconfig[i].object_position);
+                    o.initpos = data.editorconfig[i].object_position;
 
+                    o.position = data.editorconfig[i].position;
+                    for(let j = 0; j < data.editorconfig[i].parameters.length; j++) {
+                        let p = data.editorconfig[i].parameters[j];
+                        o.setPosition(p.position.x, p.position.y, p.name);
+                    }
+                }
+            }
+
+            if(data.mod_links) {
+                for(let i = 0; i < data.mod_links.length; i++) {
+                    let dest = this.findParameterObject(data.mod_links[i].destination);
+                    let src = this.findModSource(data.mod_links[i].source);
+
+                    if(dest && src && dest.links == 0) {
+                        this.links.push({source: src, destination: dest, amount: data.mod_links[i].amount});
+                        dest.links++;
+                        src.links++;
+
+                    }
                 }
             }
         },
@@ -231,11 +333,33 @@ export default {
             return this.objects.find(o => {
                 return o.name === name;
             });
+        },
+        createKeyboardControls() {
+
+        },
+        createCVControls() {
+            let cv = new CvIn("sync", 1, "trigger");
+            this.cvIns.push(cv);
+            this.setPxPosition(cv.name, cv.initpos);
+        },
+        clearAll() {
+            this.links = [];
+            for(let i = 0; i < this.objects.length; i++) {
+                this.objects[i].links = 0;
+                for(let j = 0; j < this.objects[i].parameters.length; j++) {
+                    this.objects[i].parameters[j].links = 0;
+                }
+            }
+        },
+        removeConnection(link) {
+            this.links[link].source.links--;
+            this.links[link].destination.links--;
+            this.links.splice(link, 1);
         }
     },
     computed: {
         objects() {
-            return this.modulators.concat(this.sources).concat(this.midiIns);
+            return this.modulators.concat(this.sources).concat(this.midiIns).concat(this.cvIns).concat(this.effects).concat([this.voice]);
         }
     }
 }
