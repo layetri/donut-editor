@@ -34,11 +34,15 @@
                 <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="clearAll">
                     x <span class="text-red-500">clear</span>
                 </div>
+                <div class="bg-white hover:bg-gray-100 px-4 py-2 rounded-lg shadow-sm hover:shadow-md text-gray-500 font-bold text-sm cursor-pointer mr-4" @click="openAboutModal = true">
+                    <span class="text-sky-400">i</span> about
+                </div>
               <div class="flex-auto"></div>
           </div>
 
           <MidiInputModal v-if="addingMidiInput" @done="createMidiInput" />
-          <ImportModal v-if="openImportModal" />
+          <!-- <ImportModal v-if="openImportModal" /> -->
+          <AboutModal v-if="openAboutModal" @exit="openAboutModal = false" />
           <a id="downloadAnchorElem" style="display:none"></a>
           <input type="file" id="importPreset" style="display:none" @change="readFile">
       </div>
@@ -48,11 +52,13 @@
 <script>
 import EditorCanvas from "./EditorCanvas.vue";
 import MidiInputModal from "./MidiInput";
+import AboutModal from "./About";
 
 export default {
     components: {
         EditorCanvas,
-        MidiInputModal
+        MidiInputModal,
+        AboutModal
     },
     data() {
         return {
@@ -60,7 +66,8 @@ export default {
             file: null,
             addingMidiInput: false,
             allowKeyboardControlsAdd: true,
-            allowCVControlsAdd: true
+            allowCVControlsAdd: true,
+            openAboutModal: false
         }
     },
     methods: {

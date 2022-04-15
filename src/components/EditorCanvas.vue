@@ -47,6 +47,7 @@ import ADSR from "../synthobjects/ADSR";
 import WaveShaper from "../synthobjects/WaveShaper";
 import WaveTable from "../synthobjects/WaveTable";
 import Tensions from "../synthobjects/Tensions";
+import Sampler from "../synthobjects/Sampler";
 import MidiIn from "../synthobjects/MidiIn";
 import CvIn from "../synthobjects/CVIn";
 import Voice from "../synthobjects/Voice";
@@ -91,6 +92,7 @@ export default {
         this.sources.push(new WaveTable("WaveTable 1", "wt1"));
         this.sources.push(new WaveTable("WaveTable 2", "wt2"));
         this.sources.push(new Tensions("Tensions", "ks"));
+        this.sources.push(new Sampler("Sampler", "sampler"));
 
         this.effects.push(new StereoDelay("StereoDelay", "fx_delay"));
 
