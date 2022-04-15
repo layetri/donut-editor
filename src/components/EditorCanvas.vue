@@ -216,8 +216,8 @@ export default {
                     for(let j = 0; j < store_to_parameters[i].parameters.length; j++) {
                         dump["parameters"].push({
                             key: store_to_parameters[i].parameters[j].name,
-                            base_value: store_to_parameters[i].parameters[j].value,
-                            value: store_to_parameters[i].parameters[j].value,
+                            base_value: Number(store_to_parameters[i].parameters[j].value),
+                            value: Number(store_to_parameters[i].parameters[j].value),
                             voice: voice
                         });
                     }
@@ -239,8 +239,8 @@ export default {
                 for(let j = 0; j < this.effects[i].parameters.length; j++) {
                     dump["parameters"].push({
                         key: this.effects[i].parameters[j].name,
-                        base_value: this.effects[i].parameters[j].value,
-                        value: this.effects[i].parameters[j].value,
+                        base_value: Number(this.effects[i].parameters[j].value),
+                        value: Number(this.effects[i].parameters[j].value),
                         voice: 0
                     });
                 }
